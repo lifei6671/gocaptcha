@@ -22,7 +22,7 @@
 天朝可以去 http://www.golangtc.com/download/package 下载
 
 ####代码
-具体实例可以产科example目录，有生成的验证码图片。
+具体实例可以查看example目录，有生成的验证码图片。
 
 ```
 	
