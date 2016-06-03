@@ -14,11 +14,11 @@ const (
 
 func main() {
 
-	captcha.SetFontFamily("fonts/BRACELET.ttf","fonts/ApothecaryFont.ttf");
-	captcha.SetFontFamily("fonts/actionj.ttf");
-	captcha.SetFontFamily("fonts/Comismsh.ttf");
-	captcha.SetFontFamily("fonts/Esquisito.ttf");
-	captcha.SetFontFamily("fonts/DENNEthree-dee.ttf");
+	gocaptcha.SetFontFamily("fonts/BRACELET.ttf","fonts/ApothecaryFont.ttf");
+	gocaptcha.SetFontFamily("fonts/actionj.ttf");
+	gocaptcha.SetFontFamily("fonts/Comismsh.ttf");
+	gocaptcha.SetFontFamily("fonts/Esquisito.ttf");
+	gocaptcha.SetFontFamily("fonts/DENNEthree-dee.ttf");
 
 
 	http.HandleFunc("/", Index)
@@ -38,17 +38,17 @@ func Index(w http.ResponseWriter, r *http.Request) {
 }
 func Get(w http.ResponseWriter, r *http.Request) {
 
-	captchaImage,err := captcha.NewCaptchaImage(dx,dy,captcha.RandLightColor());
+	captchaImage,err := gocaptcha.NewCaptchaImage(dx,dy,gocaptcha.RandLightColor());
 
 	captchaImage.Drawline(3);
-	captchaImage.DrawBorder(captcha.ColorToRGB(0x17A7A7A));
-	captchaImage.DrawNoise(captcha.CaptchaComplexHigh);
+	captchaImage.DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A));
+	captchaImage.DrawNoise(gocaptcha.CaptchaComplexHigh);
 
-	captchaImage.DrawTextNoise(captcha.CaptchaComplexLower);
-	captchaImage.DrawText(captcha.RandText(4));
+	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexLower);
+	captchaImage.DrawText(gocaptcha.RandText(4));
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	captchaImage.SaveImage(w,captcha.ImageFormatJpeg);
+	captchaImage.SaveImage(w,gocaptcha.ImageFormatJpeg);
 }
