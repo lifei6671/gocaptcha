@@ -6,6 +6,22 @@
 
 ##实例
 
+####使用：
+
+```
+	go get github.com/lifei6671/gocaptcha/
+```
+
+####使用的类库
+
+```
+	go get github.com/golang/freetype
+	go get github.com/golang/freetype/truetype
+	go get golang.org/x/image
+```
+天朝可以去 http://www.golangtc.com/download/package 下载
+
+####代码
 具体实例可以产科example目录，有生成的验证码图片。
 
 ```
