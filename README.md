@@ -3,9 +3,9 @@
 
 ##图片实例
 
-![image](https://raw.githubusercontent.com/lifei6671/gocaptcha/master/example/image_e6ge.jpg)
-![image](https://raw.githubusercontent.com/lifei6671/gocaptcha/master/example/image_fwwr.jpg)
-![image](https://raw.githubusercontent.com/lifei6671/gocaptcha/master/example/image_xsx7.jpg)
+![image](https://raw.githubusercontent.com/lifei6671/gocaptcha/master/example/image_1.jpg)
+![image](https://raw.githubusercontent.com/lifei6671/gocaptcha/master/example/image_2.jpg)
+![image](https://raw.githubusercontent.com/lifei6671/gocaptcha/master/example/image_3.jpg)
 
 ##简介
 

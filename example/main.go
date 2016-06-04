@@ -11,8 +11,8 @@ import (
 	"io/ioutil"
 )
 const (
-	dx = 500
-	dy = 150
+	dx = 300
+	dy = 100
 )
 
 func main() {
