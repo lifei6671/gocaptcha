@@ -51,7 +51,11 @@
 	}
 
 ```
+####图片实例
 
+![image](https://github.com/lifei6671/gocaptcha/blob/master/example/image_e6ge.jpg)
+![image](https://github.com/lifei6671/gocaptcha/blob/master/example/image_fwwr.jpg)
+![image](https://github.com/lifei6671/gocaptcha/blob/master/example/image_xsx7.jpg)
 
 
 
