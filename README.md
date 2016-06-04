@@ -26,7 +26,7 @@
 	go get github.com/golang/freetype/truetype
 	go get golang.org/x/image
 ```
-天朝可以去 http://www.golangtc.com/download/package 或 gopm.io 下载
+天朝可以去 http://www.golangtc.com/download/package 或 https://gopm.io 下载
 
 ####代码
 具体实例可以查看example目录，有生成的验证码图片。
