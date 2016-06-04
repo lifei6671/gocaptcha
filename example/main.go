@@ -11,8 +11,8 @@ import (
 	"io/ioutil"
 )
 const (
-	dx = 200
-	dy = 80
+	dx = 500
+	dy = 150
 )
 
 func main() {
@@ -57,12 +57,15 @@ func Get(w http.ResponseWriter, r *http.Request) {
 
 	captchaImage,err := gocaptcha.NewCaptchaImage(dx,dy,gocaptcha.RandLightColor());
 
-	captchaImage.Drawline(3);
-	captchaImage.DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A));
+
 	captchaImage.DrawNoise(gocaptcha.CaptchaComplexHigh);
 
-	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexLower);
+	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexHigh);
+
 	captchaImage.DrawText(gocaptcha.RandText(4));
+	//captchaImage.Drawline(3);
+	captchaImage.DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A));
+	captchaImage.DrawHollowLine();
 	if err != nil {
 		fmt.Println(err)
 	}

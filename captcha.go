@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"github.com/golang/freetype/truetype"
 	"image/gif"
+	"fmt"
 )
 
 var (
@@ -77,7 +78,42 @@ func (this *CaptchaImage)SaveImage(w io.Writer ,imageFormat int) error{
 
 	return errors.New("Not supported image format");
 }
+//添加一个较粗的空白直线
+func (captcha *CaptchaImage) DrawHollowLine()(*CaptchaImage){
 
+	first := (captcha.width / 20);
+	end := first * 19;
+
+	lineColor := color.RGBA{ R : 245,G:250,B:251,A:255};
+
+	x1 := float64(r.Intn(first));
+	//y1 := float64(r.Intn(y)+y);
+
+	x2 := float64( r.Intn(first)+end);
+
+	multiple := float64(r.Intn(5)+3)/float64(5);
+	if(int(multiple*10) % 3 == 0){
+		multiple = multiple * -1.0;
+	}
+
+	w := captcha.height / 20;
+
+	for ;x1 < x2; x1 ++{
+
+		y := math.Sin(x1*math.Pi*multiple/float64(captcha.width)) * float64(captcha.height/3);
+
+		if(multiple < 0){
+			y = y + float64(captcha.height/2);
+		}
+		captcha.nrgba.Set(int(x1),int(y),lineColor);
+
+		for i:=0;i<=w;i++{
+			captcha.nrgba.Set(int(x1),int(y)+i,lineColor);
+		}
+	}
+
+	return captcha;
+}
 //画一条直线
 func (captcha *CaptchaImage)Drawline(num int) (*CaptchaImage) {
 
@@ -119,6 +155,10 @@ func (captcha *CaptchaImage)drawBeeline(point1 Point,point2 Point,lineColor colo
 	err := dx - dy
 	for {
 		captcha.nrgba.Set(point1.X,point1.Y,lineColor);
+		captcha.nrgba.Set(point1.X+1,point1.Y,lineColor);
+		captcha.nrgba.Set(point1.X-1,point1.Y,lineColor);
+		captcha.nrgba.Set(point1.X+2,point1.Y,lineColor);
+		captcha.nrgba.Set(point1.X-2,point1.Y,lineColor);
 		if point1.X == point2.X && point1.Y == point2.Y {
 			return
 		}
@@ -147,7 +187,7 @@ func (captcha *CaptchaImage) DrawBorder(borderColor color.RGBA) (*CaptchaImage){
 	return captcha;
 }
 
-//画所及噪点
+//画噪点
 func (captcha *CaptchaImage) DrawNoise(complex int) (*CaptchaImage){
 	density := 18;
 	if(complex == CaptchaComplexLower){
@@ -172,17 +212,21 @@ func (captcha *CaptchaImage) DrawNoise(complex int) (*CaptchaImage){
 	}
 	return captcha;
 }
-
+//画文字噪点
 func (captcha *CaptchaImage) DrawTextNoise(complex int)(error){
-	density := 150;
+	density := 1500;
 	if(complex == CaptchaComplexLower){
-		density = 200;
+		density = 2000;
 	}else if(complex == CaptchaComplexMedium){
-		density = 150;
+		density = 1500;
 	}else if(complex == CaptchaComplexHigh){
-		density = 120;
+		density = 1000;
 	}
+
 	maxSize := (captcha.height * captcha.width)/density;
+
+	fmt.Println(maxSize);
+
 	r := rand.New(rand.NewSource(time.Now().UnixNano()));
 
 	c := freetype.NewContext();
@@ -191,6 +235,7 @@ func (captcha *CaptchaImage) DrawTextNoise(complex int)(error){
 	c.SetClip(captcha.nrgba.Bounds());
 	c.SetDst(captcha.nrgba)
 	c.SetHinting(font.HintingFull)
+	rawFontSize := float64(captcha.height) / (1+ float64(r.Intn(7))/float64(10))
 
 	for i:=0;i<maxSize;i++{
 
@@ -198,7 +243,8 @@ func (captcha *CaptchaImage) DrawTextNoise(complex int)(error){
 		rh := r.Intn(captcha.height);
 
 		text := RandText(1);
-		fontSize := float64(12+r.Intn(5));
+		fontSize := rawFontSize/2 + float64(r.Intn(5));
+
 		c.SetSrc(image.NewUniform(RandLightColor()))
 		c.SetFontSize(fontSize);
 		f,err := RandFontFamily();
@@ -297,9 +343,9 @@ func RandDeepColor() color.RGBA{
 //随机生成浅色
 func RandLightColor() color.RGBA{
 
-	red := r.Intn(25) + 230;
-	green := r.Intn(25)+230;
-	blue := r.Intn(25) + 230;
+	red := r.Intn(55) + 200;
+	green := r.Intn(55)+200;
+	blue := r.Intn(55) + 200;
 
 
 	return color.RGBA{R:uint8(red), G : uint8(green),B:uint8(blue),A:uint8(255)};
