@@ -278,7 +278,7 @@ func(captcha *CaptchaImage) DrawText(text string)(error){
 
 	for i,s := range text{
 
-		fontSize := float64(captcha.height) / (1+ float64(r.Intn(7))/float64(10))
+		fontSize := float64(captcha.height) / (1+ float64(r.Intn(7))/float64(9))
 
 		c.SetSrc(image.NewUniform(RandDeepColor()))
 		c.SetFontSize(fontSize);

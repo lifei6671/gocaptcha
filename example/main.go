@@ -11,36 +11,35 @@ import (
 	"io/ioutil"
 )
 const (
-	dx = 300
-	dy = 100
+	dx = 150
+	dy = 50
 )
 
 func main() {
 
-	//fontFils,err := ListDir("fonts",".ttf");
-	//if(err != nil){
-	//	fmt.Println(err);
-	//	return ;
-	//}
-	//
-	//gocaptcha.SetFontFamily(fontFils...);
+	fontFils,err := ListDir("fonts",".ttf");
+	if(err != nil){
+		fmt.Println(err);
+		return ;
+	}
 
-	gocaptcha.SetFontFamily(
-		"fonts/3Dumb.ttf",
-		"fonts/DeborahFancyDress.ttf",
-		"fonts/actionj.ttf",
-		"fonts/chromohv.ttf",
-		"fonts/D3Parallelism.ttf",
-		"fonts/Flim-Flam.ttf",
-		"fonts/KREMLINGEORGIANI3D.ttf",
-		//"fonts/Lead.ttf",
-		)
+	gocaptcha.SetFontFamily(fontFils...);
+
+	//gocaptcha.SetFontFamily(
+	//	"fonts/3Dumb.ttf",
+	//	"fonts/DeborahFancyDress.ttf",
+	//	"fonts/actionj.ttf",
+	//	"fonts/chromohv.ttf",
+	//	"fonts/D3Parallelism.ttf",
+	//	"fonts/Flim-Flam.ttf",
+	//	"fonts/KREMLINGEORGIANI3D.ttf",
+	//	)
 
 
 	http.HandleFunc("/", Index)
 	http.HandleFunc("/get/", Get)
 	fmt.Println("服务已启动...");
-	err := http.ListenAndServe(":8000", nil)
+	err = http.ListenAndServe(":8000", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
