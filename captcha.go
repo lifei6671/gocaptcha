@@ -358,6 +358,9 @@ func (captcha *CaptchaImage) DrawText(text string) error {
 
 //获取所及字体
 func RandFontFamily() (*truetype.Font, error) {
+	if len(FontFamily) == 0 {
+		return nil, errors.New("Please add some fonts by ReadFonts or SetFontFamily")
+	}
 	fontfile := FontFamily[r.Intn(len(FontFamily))]
 
 	fontBytes, err := ioutil.ReadFile(fontfile)
@@ -428,6 +431,7 @@ func RandText(num int) string {
 }
 
 //添加一个字体路径到字体库
+//will it be better to call this func AppendFontFamily ? set is different from append, I think
 func SetFontFamily(fontPath ...string) {
 
 	FontFamily = append(FontFamily, fontPath...)
