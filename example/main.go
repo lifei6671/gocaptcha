@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
-	"gocaptcha"
-	"net/http"
-	"log"
+	"github.com/lifei6671/gocaptcha"
 	"html/template"
-	"os"
-	"strings"
-	"io/ioutil"
+	"log"
+	"net/http"
 )
+
 const (
 	dx = 150
 	dy = 50
@@ -17,13 +15,13 @@ const (
 
 func main() {
 
-	fontFils,err := ListDir("fonts",".ttf");
-	if(err != nil){
-		fmt.Println(err);
-		return ;
+	err := gocaptcha.ReadFonts("fonts", ".ttf")
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
-	gocaptcha.SetFontFamily(fontFils...);
+	//	gocaptcha.SetFontFamily(fontFils...)
 
 	//gocaptcha.SetFontFamily(
 	//	"fonts/3Dumb.ttf",
@@ -35,10 +33,9 @@ func main() {
 	//	"fonts/KREMLINGEORGIANI3D.ttf",
 	//	)
 
-
 	http.HandleFunc("/", Index)
 	http.HandleFunc("/get/", Get)
-	fmt.Println("服务已启动...");
+	fmt.Println("服务已启动...")
 	err = http.ListenAndServe(":8000", nil)
 	if err != nil {
 		log.Fatal(err)
@@ -54,40 +51,19 @@ func Index(w http.ResponseWriter, r *http.Request) {
 }
 func Get(w http.ResponseWriter, r *http.Request) {
 
-	captchaImage,err := gocaptcha.NewCaptchaImage(dx,dy,gocaptcha.RandLightColor());
+	captchaImage, err := gocaptcha.NewCaptchaImage(dx, dy, gocaptcha.RandLightColor())
 
+	captchaImage.DrawNoise(gocaptcha.CaptchaComplexHigh)
 
-	captchaImage.DrawNoise(gocaptcha.CaptchaComplexHigh);
+	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexHigh)
 
-	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexHigh);
-
-	captchaImage.DrawText(gocaptcha.RandText(4));
+	captchaImage.DrawText(gocaptcha.RandText(4))
 	//captchaImage.Drawline(3);
-	captchaImage.DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A));
-	captchaImage.DrawHollowLine();
+	captchaImage.DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A))
+	captchaImage.DrawHollowLine()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	captchaImage.SaveImage(w,gocaptcha.ImageFormatJpeg);
-}
-
-//获取指定目录下的所有文件，不进入下一级目录搜索，可以匹配后缀过滤。
-func ListDir(dirPth string, suffix string) (files []string, err error) {
-	files = make([]string, 0, 10)
-	dir, err := ioutil.ReadDir(dirPth)
-	if err != nil {
-		return nil, err
-	}
-	PthSep := string(os.PathSeparator)
-	suffix = strings.ToUpper(suffix) //忽略后缀匹配的大小写
-	for _, fi := range dir {
-		if fi.IsDir() { // 忽略目录
-			continue
-		}
-		if strings.HasSuffix(strings.ToUpper(fi.Name()), suffix) { //匹配文件
-			files = append(files, dirPth+PthSep+fi.Name())
-		}
-	}
-	return files, nil
+	captchaImage.SaveImage(w, gocaptcha.ImageFormatJpeg)
 }
