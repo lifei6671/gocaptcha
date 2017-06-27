@@ -36,7 +36,7 @@ func main() {
 	http.HandleFunc("/", Index)
 	http.HandleFunc("/get/", Get)
 	fmt.Println("服务已启动...")
-	err = http.ListenAndServe(":8000", nil)
+	err = http.ListenAndServe(":8800", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -53,14 +53,15 @@ func Get(w http.ResponseWriter, r *http.Request) {
 
 	captchaImage, err := gocaptcha.NewCaptchaImage(dx, dy, gocaptcha.RandLightColor())
 
-	captchaImage.DrawNoise(gocaptcha.CaptchaComplexHigh)
+	captchaImage.DrawNoise(gocaptcha.CaptchaComplexLower)
 
-	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexHigh)
+	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexLower)
 
 	captchaImage.DrawText(gocaptcha.RandText(4))
 	//captchaImage.Drawline(3);
 	captchaImage.DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A))
-	captchaImage.DrawHollowLine()
+	captchaImage.DrawSineLine()
+	//captchaImage.DrawHollowLine()
 	if err != nil {
 		fmt.Println(err)
 	}
