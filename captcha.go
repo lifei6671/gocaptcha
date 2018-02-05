@@ -29,7 +29,7 @@ var (
 	FontFamily []string = make([]string, 0)
 )
 
-const txtChars = "AaCcDdEeFfGgHhJjKkLMmNnPpQqRrSsTtUuVvWwXxYtZ012346789"
+const txtChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 const (
 	//图片格式
@@ -97,7 +97,7 @@ func (this *CaptchaImage) SaveImage(w io.Writer, imageFormat int) error {
 		return gif.Encode(w, this.nrgba, &gif.Options{NumColors: 256})
 	}
 
-	return errors.New("Not supported image format")
+	return errors.New("Not supported image format.")
 }
 
 //添加一个较粗的空白直线
@@ -142,36 +142,36 @@ func (captcha *CaptchaImage) DrawSineLine() *CaptchaImage {
 	var py float64 = 0
 
 	//振幅
-	a := r.Intn(captcha.height/2)
+	a := r.Intn(captcha.height / 2)
 
 	//Y轴方向偏移量
-	b := Random(int64(-captcha.height/4),int64(captcha.height/4))
+	b := Random(int64(-captcha.height/4), int64(captcha.height/4))
 
 	//X轴方向偏移量
-	f := Random(int64(-captcha.height/4),int64(captcha.height/4))
+	f := Random(int64(-captcha.height/4), int64(captcha.height/4))
 	// 周期
 	var t float64 = 0
-	if(captcha.height > captcha.width/2){
-		t = Random(int64(captcha.width/2),int64(captcha.height))
-	}else{
-		t = Random(int64(captcha.height),int64(captcha.width/2))
+	if captcha.height > captcha.width/2 {
+		t = Random(int64(captcha.width/2), int64(captcha.height))
+	} else {
+		t = Random(int64(captcha.height), int64(captcha.width/2))
 	}
 	w := float64((2 * math.Pi) / t)
 
 	// 曲线横坐标起始位置
 	px1 := 0
-	px2 := int(Random(int64(float64(captcha.width) * 0.8),int64(captcha.width)))
+	px2 := int(Random(int64(float64(captcha.width)*0.8), int64(captcha.width)))
 
 	c := color.RGBA{R: uint8(r.Intn(150)), G: uint8(r.Intn(150)), B: uint8(r.Intn(150)), A: uint8(255)}
 
-	for px = px1;px < px2;px ++ {
-		if(w != 0){
-			py = float64(a) * math.Sin(w * float64(px) + f) + b + (float64(captcha.width) / float64(5))
+	for px = px1; px < px2; px++ {
+		if w != 0 {
+			py = float64(a)*math.Sin(w*float64(px)+f) + b + (float64(captcha.width) / float64(5))
 			i := captcha.height / 5
 			for i > 0 {
-				captcha.nrgba.Set(px + i,int(py),c)
+				captcha.nrgba.Set(px+i, int(py), c)
 				//fmt.Println(px + i,int(py) )
-				i --
+				i--
 			}
 		}
 	}
