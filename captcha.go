@@ -26,18 +26,18 @@ import (
 var (
 	dpi                 = flag.Float64("dpi", 72, "screen resolution in Dots Per Inch")
 	r                   = rand.New(rand.NewSource(time.Now().UnixNano()))
-	FontFamily []string = make([]string, 0)
+	FontFamily  		= make([]string, 0)
 )
 
 const txtChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 const (
 	//图片格式
-	ImageFormatPng = iota
+	ImageFormatPng  = iota
 	ImageFormatJpeg
 	ImageFormatGif
 	//验证码噪点强度
-	CaptchaComplexLower = iota
+	CaptchaComplexLower  = iota
 	CaptchaComplexMedium
 	CaptchaComplexHigh
 )
@@ -85,31 +85,30 @@ func NewCaptchaImage(width int, height int, bgColor color.RGBA) (*CaptchaImage, 
 }
 
 //保存图片对象
-func (this *CaptchaImage) SaveImage(w io.Writer, imageFormat int) error {
+func (captcha *CaptchaImage) SaveImage(w io.Writer, imageFormat int) error {
 
 	if imageFormat == ImageFormatPng {
-		return png.Encode(w, this.nrgba)
+		return png.Encode(w, captcha.nrgba)
 	}
 	if imageFormat == ImageFormatJpeg {
-		return jpeg.Encode(w, this.nrgba, &jpeg.Options{100})
+		return jpeg.Encode(w, captcha.nrgba, &jpeg.Options{100})
 	}
 	if imageFormat == ImageFormatGif {
-		return gif.Encode(w, this.nrgba, &gif.Options{NumColors: 256})
+		return gif.Encode(w, captcha.nrgba, &gif.Options{NumColors: 256})
 	}
 
-	return errors.New("Not supported image format.")
+	return errors.New("not supported image format")
 }
 
 //添加一个较粗的空白直线
 func (captcha *CaptchaImage) DrawHollowLine() *CaptchaImage {
 
-	first := (captcha.width / 20)
+	first := captcha.width / 20
 	end := first * 19
 
 	lineColor := color.RGBA{R: 245, G: 250, B: 251, A: 255}
 
 	x1 := float64(r.Intn(first))
-	//y1 := float64(r.Intn(y)+y);
 
 	x2 := float64(r.Intn(first) + end)
 
@@ -137,6 +136,7 @@ func (captcha *CaptchaImage) DrawHollowLine() *CaptchaImage {
 	return captcha
 }
 
+//画一条曲线.
 func (captcha *CaptchaImage) DrawSineLine() *CaptchaImage {
 	px := 0
 	var py float64 = 0
@@ -170,7 +170,6 @@ func (captcha *CaptchaImage) DrawSineLine() *CaptchaImage {
 			i := captcha.height / 5
 			for i > 0 {
 				captcha.nrgba.Set(px+i, int(py), c)
-				//fmt.Println(px + i,int(py) )
 				i--
 			}
 		}
@@ -179,10 +178,10 @@ func (captcha *CaptchaImage) DrawSineLine() *CaptchaImage {
 	return captcha
 }
 
-//画一条直线
+//画一条直线.
 func (captcha *CaptchaImage) Drawline(num int) *CaptchaImage {
 
-	first := (captcha.width / 10)
+	first := captcha.width / 10
 	end := first * 9
 
 	y := captcha.height / 3
@@ -206,6 +205,7 @@ func (captcha *CaptchaImage) Drawline(num int) *CaptchaImage {
 	return captcha
 }
 
+//画直线.
 func (captcha *CaptchaImage) drawBeeline(point1 Point, point2 Point, lineColor color.RGBA) {
 	dx := math.Abs(float64(point1.X - point2.X))
 
@@ -218,6 +218,7 @@ func (captcha *CaptchaImage) drawBeeline(point1 Point, point2 Point, lineColor c
 		sy = -1
 	}
 	err := dx - dy
+	//循环的画点直到到达结束坐标停止.
 	for {
 		captcha.nrgba.Set(point1.X, point1.Y, lineColor)
 		captcha.nrgba.Set(point1.X+1, point1.Y, lineColor)
@@ -374,9 +375,9 @@ func (captcha *CaptchaImage) DrawText(text string) error {
 
 //获取所及字体.
 func RandFontFamily() (*truetype.Font, error) {
-	fontfile := FontFamily[r.Intn(len(FontFamily))]
+	fontFile := FontFamily[r.Intn(len(FontFamily))]
 
-	fontBytes, err := ioutil.ReadFile(fontfile)
+	fontBytes, err := ioutil.ReadFile(fontFile)
 	if err != nil {
 		log.Println(err)
 		return &truetype.Font{}, err
