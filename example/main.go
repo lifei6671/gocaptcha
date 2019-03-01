@@ -14,24 +14,13 @@ const (
 )
 
 func main() {
-
+	// 加载所有字体
 	err := gocaptcha.ReadFonts("fonts", ".ttf")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	//	gocaptcha.SetFontFamily(fontFils...)
-
-	//gocaptcha.SetFontFamily(
-	//	"fonts/3Dumb.ttf",
-	//	"fonts/DeborahFancyDress.ttf",
-	//	"fonts/actionj.ttf",
-	//	"fonts/chromohv.ttf",
-	//	"fonts/D3Parallelism.ttf",
-	//	"fonts/Flim-Flam.ttf",
-	//	"fonts/KREMLINGEORGIANI3D.ttf",
-	//	)
 
 	http.HandleFunc("/", Index)
 	http.HandleFunc("/get/", Get)
@@ -47,24 +36,21 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	t.Execute(w, nil)
+	_ = t.Execute(w, nil)
 }
 func Get(w http.ResponseWriter, r *http.Request) {
 
-	captchaImage, err := gocaptcha.NewCaptchaImage(dx, dy, gocaptcha.RandLightColor())
+	captchaImage := gocaptcha.NewCaptchaImage(dx, dy, gocaptcha.RandLightColor())
 
-	captchaImage.DrawNoise(gocaptcha.CaptchaComplexLower)
+	err := captchaImage.DrawNoise(gocaptcha.CaptchaComplexLower).
+		DrawTextNoise(gocaptcha.CaptchaComplexLower).
+		DrawText(gocaptcha.RandText(4)).
+		DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A)).
+		DrawSineLine().Error
 
-	captchaImage.DrawTextNoise(gocaptcha.CaptchaComplexLower)
-
-	captchaImage.DrawText(gocaptcha.RandText(4))
-	//captchaImage.Drawline(3);
-	captchaImage.DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A))
-	captchaImage.DrawSineLine()
-	//captchaImage.DrawHollowLine()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	captchaImage.SaveImage(w, gocaptcha.ImageFormatJpeg)
+	_ = captchaImage.SaveImage(w, gocaptcha.ImageFormatJpeg)
 }
