@@ -43,6 +43,7 @@ const (
 	CaptchaComplexMedium
 	CaptchaComplexHigh
 )
+
 type ImageFormat int
 
 type CaptchaComplex int
@@ -81,7 +82,7 @@ func NewCaptchaImage(width int, height int, bgColor color.RGBA) *CaptchaImage {
 
 	m := image.NewNRGBA(image.Rect(0, 0, width, height))
 
-	draw.Draw(m, m.Bounds(), &image.Uniform{C: bgColor}, image.ZP, draw.Src)
+	draw.Draw(m, m.Bounds(), &image.Uniform{C: bgColor}, image.Point{}, draw.Src)
 
 	return &CaptchaImage{
 		nrgba:  m,
@@ -167,7 +168,7 @@ func (captcha *CaptchaImage) DrawSineLine() *CaptchaImage {
 	} else {
 		t = Random(int64(captcha.height), int64(captcha.width/2))
 	}
-	w := float64((2 * math.Pi) / t)
+	w := (2 * math.Pi) / t
 
 	// 曲线横坐标起始位置
 	px1 := 0
@@ -254,7 +255,6 @@ func (captcha *CaptchaImage) drawBeeline(point1 Point, point2 Point, lineColor c
 			point1.Y += sy
 		}
 	}
-	return captcha
 }
 
 //画边框.
@@ -384,7 +384,7 @@ func (captcha *CaptchaImage) DrawText(text string) *CaptchaImage {
 		}
 		c.SetFont(f)
 
-		x := int(fontWidth)*i + int(fontWidth)/int(fontSize)
+		x := (fontWidth)*i + (fontWidth)/int(fontSize)
 
 		y := 5 + r.Intn(captcha.height/2) + int(fontSize/2)
 
@@ -477,6 +477,7 @@ func RandText(num int) string {
 func SetFontFamily(fontPath ...string) {
 	fontFamily = append(fontFamily, fontPath...)
 }
+
 // 颜色代码转换为RGB
 //input int
 //output int red, green, blue.
