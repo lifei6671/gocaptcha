@@ -1,6 +1,7 @@
 package gocaptcha
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"image"
@@ -10,16 +11,11 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
-	"io/ioutil"
-	"log"
 	"math"
 	"math/rand"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/golang/freetype"
-	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
 )
 
@@ -56,30 +52,14 @@ type CaptchaImage struct {
 	Error   error
 }
 
-//获取指定目录下的所有文件，不进入下一级目录搜索，可以匹配后缀过滤。
-func ReadFonts(dirPth string, suffix string) (err error) {
-	files := make([]string, 0, 10)
-	dir, err := ioutil.ReadDir(dirPth)
-	if err != nil {
-		return err
-	}
-	PthSep := string(os.PathSeparator)
-	suffix = strings.ToUpper(suffix) //忽略后缀匹配的大小写
-	for _, fi := range dir {
-		if fi.IsDir() { // 忽略目录
-			continue
-		}
-		if strings.HasSuffix(strings.ToUpper(fi.Name()), suffix) { //匹配文件
-			files = append(files, dirPth+PthSep+fi.Name())
-		}
-	}
-	SetFontFamily(files...)
-	return nil
+//NewCaptchaImage 新建一个图片对象
+//Deprecated: 弃用
+func NewCaptchaImage(width int, height int, bgColor color.RGBA) *CaptchaImage {
+	return New(width, height, bgColor)
 }
 
-//新建一个图片对象
-func NewCaptchaImage(width int, height int, bgColor color.RGBA) *CaptchaImage {
-
+//New 新建一个图片对象
+func New(width int, height int, bgColor color.RGBA) *CaptchaImage {
 	m := image.NewNRGBA(image.Rect(0, 0, width, height))
 
 	draw.Draw(m, m.Bounds(), &image.Uniform{C: bgColor}, image.Point{}, draw.Src)
@@ -91,7 +71,7 @@ func NewCaptchaImage(width int, height int, bgColor color.RGBA) *CaptchaImage {
 	}
 }
 
-//保存图片对象
+//SaveImage 保存图片对象
 func (captcha *CaptchaImage) SaveImage(w io.Writer, imageFormat ImageFormat) error {
 
 	if imageFormat == ImageFormatPng {
@@ -107,7 +87,7 @@ func (captcha *CaptchaImage) SaveImage(w io.Writer, imageFormat ImageFormat) err
 	return errors.New("not supported image format")
 }
 
-//添加一个较粗的空白直线
+//DrawHollowLine 添加一个较粗的空白直线
 func (captcha *CaptchaImage) DrawHollowLine() *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -145,7 +125,7 @@ func (captcha *CaptchaImage) DrawHollowLine() *CaptchaImage {
 	return captcha
 }
 
-//画一条曲线.
+//DrawSineLine 画一条曲线.
 func (captcha *CaptchaImage) DrawSineLine() *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -190,7 +170,7 @@ func (captcha *CaptchaImage) DrawSineLine() *CaptchaImage {
 	return captcha
 }
 
-//画一条直线.
+//DrawLine 画一条直线.
 func (captcha *CaptchaImage) DrawLine(num int) *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -219,7 +199,7 @@ func (captcha *CaptchaImage) DrawLine(num int) *CaptchaImage {
 	return captcha
 }
 
-//画直线.
+//drawBeeline 画直线.
 func (captcha *CaptchaImage) drawBeeline(point1 Point, point2 Point, lineColor color.RGBA) *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -257,7 +237,7 @@ func (captcha *CaptchaImage) drawBeeline(point1 Point, point2 Point, lineColor c
 	}
 }
 
-//画边框.
+//DrawBorder 画边框.
 func (captcha *CaptchaImage) DrawBorder(borderColor color.RGBA) *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -273,7 +253,7 @@ func (captcha *CaptchaImage) DrawBorder(borderColor color.RGBA) *CaptchaImage {
 	return captcha
 }
 
-//画噪点.
+//DrawNoise 画噪点.
 func (captcha *CaptchaImage) DrawNoise(complex CaptchaComplex) *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -302,7 +282,7 @@ func (captcha *CaptchaImage) DrawNoise(complex CaptchaComplex) *CaptchaImage {
 	return captcha
 }
 
-//画文字噪点.
+//DrawTextNoise 画文字噪点.
 func (captcha *CaptchaImage) DrawTextNoise(complex CaptchaComplex) *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -356,7 +336,7 @@ func (captcha *CaptchaImage) DrawTextNoise(complex CaptchaComplex) *CaptchaImage
 	return captcha
 }
 
-//写字.
+//DrawText 写字.
 func (captcha *CaptchaImage) DrawText(text string) *CaptchaImage {
 	if captcha.Error != nil {
 		return captcha
@@ -402,95 +382,12 @@ func (captcha *CaptchaImage) DrawText(text string) *CaptchaImage {
 
 }
 
-//获取所及字体.
-func RandFontFamily() (*truetype.Font, error) {
-	fontFile := fontFamily[r.Intn(len(fontFamily))]
-
-	fontBytes, err := ioutil.ReadFile(fontFile)
+func (captcha *CaptchaImage) Save() (io io.Reader, err error) {
+	buf := new(bytes.Buffer)
+	err = jpeg.Encode(buf, captcha.nrgba, nil)
 	if err != nil {
-		log.Println(err)
-		return &truetype.Font{}, err
+		return
 	}
-	f, err := freetype.ParseFont(fontBytes)
-	if err != nil {
-		log.Println(err)
-		return &truetype.Font{}, err
-	}
-	return f, nil
-}
-
-//随机生成深色系.
-func randDeepColor() color.RGBA {
-
-	randColor := randColor()
-
-	increase := float64(30 + r.Intn(255))
-
-	red := math.Abs(math.Min(float64(randColor.R)-increase, 255))
-
-	green := math.Abs(math.Min(float64(randColor.G)-increase, 255))
-	blue := math.Abs(math.Min(float64(randColor.B)-increase, 255))
-
-	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: uint8(255)}
-}
-
-//随机生成浅色.
-func RandLightColor() color.RGBA {
-
-	red := r.Intn(55) + 200
-	green := r.Intn(55) + 200
-	blue := r.Intn(55) + 200
-
-	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: uint8(255)}
-}
-
-//生成随机颜色.
-func randColor() color.RGBA {
-
-	red := r.Intn(255)
-	green := r.Intn(255)
-	blue := r.Intn(255)
-	if (red + green) > 400 {
-		blue = 0
-	} else {
-		blue = 400 - green - red
-	}
-	if blue > 255 {
-		blue = 255
-	}
-	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: uint8(255)}
-}
-
-//生成随机字体.
-func RandText(num int) string {
-	textNum := len(txtChars)
-	text := ""
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	for i := 0; i < num; i++ {
-		text = text + string(txtChars[r.Intn(textNum)])
-	}
-	return text
-}
-
-//添加一个字体路径到字体库.
-func SetFontFamily(fontPath ...string) {
-	fontFamily = append(fontFamily, fontPath...)
-}
-
-// 颜色代码转换为RGB
-//input int
-//output int red, green, blue.
-func ColorToRGB(colorVal int) color.RGBA {
-
-	red := colorVal >> 16
-	green := (colorVal & 0x00FF00) >> 8
-	blue := colorVal & 0x0000FF
-
-	return color.RGBA{
-		R: uint8(red),
-		G: uint8(green),
-		B: uint8(blue),
-		A: uint8(255),
-	}
+	io = bytes.NewReader(buf.Bytes())
+	return
 }

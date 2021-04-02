@@ -14,18 +14,10 @@ const (
 )
 
 func main() {
-	// 加载所有字体
-	err := gocaptcha.ReadFonts("fonts", ".ttf")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-
 	http.HandleFunc("/", Index)
 	http.HandleFunc("/get/", Get)
-	fmt.Println("服务已启动...")
-	err = http.ListenAndServe(":8800", nil)
+	fmt.Println("服务已启动 -> http://127.0.0.1:8800")
+	err := http.ListenAndServe(":8800", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,7 +32,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 }
 func Get(w http.ResponseWriter, r *http.Request) {
 
-	captchaImage := gocaptcha.NewCaptchaImage(dx, dy, gocaptcha.RandLightColor())
+	captchaImage := gocaptcha.New(dx, dy, gocaptcha.RandLightColor())
 
 	err := captchaImage.DrawNoise(gocaptcha.CaptchaComplexLower).
 		DrawTextNoise(gocaptcha.CaptchaComplexLower).
