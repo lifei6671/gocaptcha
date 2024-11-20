@@ -1,6 +1,7 @@
 package gocaptcha
 
 import (
+	"errors"
 	"image"
 	"image/draw"
 	"math"
@@ -9,6 +10,11 @@ import (
 
 	"github.com/golang/freetype"
 	"golang.org/x/image/font"
+)
+
+var (
+	ErrNilCanvas = errors.New("canvas is nil")
+	ErrNilText   = errors.New("text is nil")
 )
 
 // TextDrawer is a text drawer interface.
@@ -23,6 +29,12 @@ type textDrawer struct {
 
 // DrawString draws a string on the canvas.
 func (t *textDrawer) DrawString(canvas draw.Image, text string) error {
+	if len(text) == 0 {
+		return ErrNilText
+	}
+	if canvas == nil {
+		return ErrNilCanvas
+	}
 	c := freetype.NewContext()
 	if t.dpi <= 0 {
 		t.dpi = 72
@@ -78,6 +90,12 @@ type twistTextDrawer struct {
 
 // DrawString draws a string on the canvas.
 func (t *twistTextDrawer) DrawString(canvas draw.Image, text string) error {
+	if len(text) == 0 {
+		return ErrNilText
+	}
+	if canvas == nil {
+		return ErrNilCanvas
+	}
 	// 创建一个新的画布用于存储扭曲后的图像
 	textCanvas := image.NewRGBA(image.Rect(0, 0, canvas.Bounds().Dx(), canvas.Bounds().Dy()))
 	draw.Draw(textCanvas, textCanvas.Bounds(), image.Transparent, image.Point{}, draw.Src)

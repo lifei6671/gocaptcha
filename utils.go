@@ -27,7 +27,10 @@ func RandLightColor() color.RGBA {
 	red := rand.Intn(128) + 128
 	green := rand.Intn(128) + 128
 	blue := rand.Intn(128) + 128
-	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: uint8(255)}
+	// Alpha 通道设置为完全不透明
+	a := uint8(rand.Intn(256))
+
+	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: a}
 }
 
 // RandColor 生成随机颜色.
