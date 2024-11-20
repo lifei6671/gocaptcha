@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
-	"github.com/lifei6671/gocaptcha"
 	"html/template"
 	"log"
 	"net/http"
+
+	"github.com/lifei6671/gocaptcha"
 )
 
 const (
-	dx = 150
-	dy = 50
+	dx = 180
+	dy = 60
 )
 
 func main() {
@@ -31,18 +32,28 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	_ = t.Execute(w, nil)
 }
 func Get(w http.ResponseWriter, r *http.Request) {
-
 	captchaImage := gocaptcha.New(dx, dy, gocaptcha.RandLightColor())
-
-	err := captchaImage.DrawNoise(gocaptcha.CaptchaComplexLower).
-		DrawTextNoise(gocaptcha.CaptchaComplexLower).
-		DrawText(gocaptcha.RandText(4)).
-		DrawBorder(gocaptcha.ColorToRGB(0x17A7A7A)).
-		DrawSineLine().Error
+	err := captchaImage.
+		DrawBorder(gocaptcha.RandDeepColor()).
+		DrawNoise(gocaptcha.NoiseDensityHigh, gocaptcha.NewTextNoiseDrawer(72)).
+		DrawNoise(gocaptcha.NoiseDensityLower, gocaptcha.NewPointNoiseDrawer()).
+		DrawLine(gocaptcha.NewBezier3DLine(), gocaptcha.RandDeepColor()).
+		DrawText(gocaptcha.NewTwistTextDrawer(gocaptcha.DefaultDPI, gocaptcha.DefaultAmplitude, gocaptcha.DefaultFrequency), gocaptcha.RandText(4)).
+		DrawLine(gocaptcha.NewBeeline(), gocaptcha.RandDeepColor()).
+		//DrawLine(gocaptcha.NewHollowLine(), gocaptcha.RandLightColor()).
+		DrawBlur(gocaptcha.NewGaussianBlur(), gocaptcha.DefaultBlurKernelSize, gocaptcha.DefaultBlurSigma).
+		Error
 
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	_ = captchaImage.SaveImage(w, gocaptcha.ImageFormatJpeg)
+	_ = captchaImage.Encode(w, gocaptcha.ImageFormatJpeg)
+}
+
+func init() {
+	err := gocaptcha.SetFontPath("../fonts/")
+	if err != nil {
+		panic(err)
+	}
 }
