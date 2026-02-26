@@ -16,9 +16,7 @@ func RandDeepColor() color.RGBA {
 	b := uint8(rand.Intn(maxValue-minValue+1) + minValue)
 
 	// Alpha 通道设置为完全不透明
-	a := uint8(rand.Intn(256))
-
-	return color.RGBA{R: r, G: g, B: b, A: a}
+	return color.RGBA{R: r, G: g, B: b, A: 255}
 }
 
 // RandLightColor 随机生成浅色.
@@ -28,9 +26,7 @@ func RandLightColor() color.RGBA {
 	green := rand.Intn(128) + 128
 	blue := rand.Intn(128) + 128
 	// Alpha 通道设置为完全不透明
-	a := uint8(rand.Intn(256))
-
-	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: a}
+	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: 255}
 }
 
 // RandColor 生成随机颜色.
@@ -40,12 +36,12 @@ func RandColor() color.RGBA {
 	var blue int
 
 	// Calculate blue value based on the sum of red and green
+	// Ensure overall color brightness is balanced
 	sum := red + green
 	if sum > 400 {
 		blue = 0
 	} else {
-		blueTemp := 400 - sum
-		blue = int(max(0, min(255, float64(blueTemp))))
+		blue = min(255, 400-sum)
 	}
 	return color.RGBA{R: uint8(red), G: uint8(green), B: uint8(blue), A: 255}
 }

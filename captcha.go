@@ -1,3 +1,4 @@
+// Package gocaptcha provides functionality for generating captcha images.
 package gocaptcha
 
 import (
@@ -10,7 +11,13 @@ import (
 	"image/png"
 	"io"
 	"math/rand"
+	"time"
 )
+
+func init() {
+	// seed global PRNG to avoid deterministic behavior in functions
+	rand.Seed(time.Now().UnixNano())
+}
 
 const (
 	// DefaultDPI 默认的dpi
@@ -46,6 +53,13 @@ type CaptchaImage struct {
 
 // New 新建一个图片对象
 func New(width int, height int, bgColor color.RGBA) *CaptchaImage {
+	// enforce minimum dimensions to avoid panics downstream
+	if width <= 0 {
+		width = 1
+	}
+	if height <= 0 {
+		height = 1
+	}
 	m := image.NewNRGBA(image.Rect(0, 0, width, height))
 
 	draw.Draw(m, m.Bounds(), &image.Uniform{C: bgColor}, image.Point{}, draw.Src)
@@ -78,7 +92,15 @@ func (captcha *CaptchaImage) DrawLine(drawer LineDrawer, lineColor color.Color) 
 	if captcha.Error != nil {
 		return captcha
 	}
+	if drawer == nil {
+		captcha.Error = errors.New("nil LineDrawer")
+		return captcha
+	}
 	y := captcha.nrgba.Bounds().Dy()
+	if y <= 0 {
+		captcha.Error = errors.New("image has zero height")
+		return captcha
+	}
 	point1 := image.Point{X: captcha.nrgba.Bounds().Min.X + 1, Y: rand.Intn(y)}
 	point2 := image.Point{X: captcha.nrgba.Bounds().Max.X - 1, Y: rand.Intn(y)}
 	captcha.Error = drawer.DrawLine(captcha.nrgba, point1, point2, lineColor)
@@ -106,6 +128,10 @@ func (captcha *CaptchaImage) DrawNoise(complex NoiseDensity, noiseDrawer NoiseDr
 	if captcha.Error != nil {
 		return captcha
 	}
+	if noiseDrawer == nil {
+		captcha.Error = errors.New("nil NoiseDrawer")
+		return captcha
+	}
 	captcha.Error = noiseDrawer.DrawNoise(captcha.nrgba, complex)
 	return captcha
 }
@@ -115,6 +141,10 @@ func (captcha *CaptchaImage) DrawText(textDrawer TextDrawer, text string) *Captc
 	if captcha.Error != nil {
 		return captcha
 	}
+	if textDrawer == nil {
+		captcha.Error = errors.New("nil TextDrawer")
+		return captcha
+	}
 	captcha.Error = textDrawer.DrawString(captcha.nrgba, text)
 	return captcha
 }
@@ -122,6 +152,10 @@ func (captcha *CaptchaImage) DrawText(textDrawer TextDrawer, text string) *Captc
 // DrawBlur 对图片进行模糊处理
 func (captcha *CaptchaImage) DrawBlur(drawer BlurDrawer, kernelSize int, sigma float64) *CaptchaImage {
 	if captcha.Error != nil {
+		return captcha
+	}
+	if drawer == nil {
+		captcha.Error = errors.New("nil BlurDrawer")
 		return captcha
 	}
 	captcha.Error = drawer.DrawBlur(captcha.nrgba, kernelSize, sigma)

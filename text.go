@@ -36,10 +36,12 @@ func (t *textDrawer) DrawString(canvas draw.Image, text string) error {
 		return ErrNilCanvas
 	}
 	c := freetype.NewContext()
-	if t.dpi <= 0 {
-		t.dpi = 72
+	// Use local variable to avoid race condition when modifying t.dpi
+	dpi := t.dpi
+	if dpi <= 0 {
+		dpi = 72
 	}
-	c.SetDPI(t.dpi)
+	c.SetDPI(dpi)
 	c.SetClip(canvas.Bounds())
 	c.SetDst(canvas)
 	c.SetHinting(font.HintingFull)
@@ -52,8 +54,8 @@ func (t *textDrawer) DrawString(canvas draw.Image, text string) error {
 
 		c.SetSrc(image.NewUniform(RandDeepColor()))
 		c.SetFontSize(fontSize)
+		// Load a random font for each character to increase difficulty
 		f, err := DefaultFontFamily.Random()
-
 		if err != nil {
 			return err
 		}
@@ -96,15 +98,24 @@ func (t *twistTextDrawer) DrawString(canvas draw.Image, text string) error {
 	if canvas == nil {
 		return ErrNilCanvas
 	}
+	// Validate amplitude and frequency parameters
+	if t.amplitude == 0 || math.IsNaN(t.amplitude) {
+		return errors.New("invalid amplitude: must be non-zero")
+	}
+	if t.frequency == 0 || math.IsNaN(t.frequency) {
+		return errors.New("invalid frequency: must be non-zero")
+	}
 	// 创建一个新的画布用于存储扭曲后的图像
 	textCanvas := image.NewRGBA(image.Rect(0, 0, canvas.Bounds().Dx(), canvas.Bounds().Dy()))
 	draw.Draw(textCanvas, textCanvas.Bounds(), image.Transparent, image.Point{}, draw.Src)
 
 	c := freetype.NewContext()
-	if t.dpi <= 0 {
-		t.dpi = 72
+	// Use local variable to avoid race condition
+	dpi := t.dpi
+	if dpi <= 0 {
+		dpi = 72
 	}
-	c.SetDPI(t.dpi)
+	c.SetDPI(dpi)
 	c.SetClip(canvas.Bounds())
 	c.SetDst(textCanvas)
 	c.SetHinting(font.HintingFull)
@@ -117,8 +128,8 @@ func (t *twistTextDrawer) DrawString(canvas draw.Image, text string) error {
 
 		c.SetSrc(image.NewUniform(RandDeepColor()))
 		c.SetFontSize(fontSize)
+		// Load a random font for each character to increase difficulty
 		f, err := DefaultFontFamily.Random()
-
 		if err != nil {
 			return err
 		}
@@ -144,17 +155,19 @@ func (t *twistTextDrawer) twistEffect(src image.Image, dst draw.Image) error {
 
 	// 遍历源图像像素
 	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			// 计算扭曲后的坐标
-			dx := int(t.amplitude * math.Sin(t.frequency*float64(y)))
-			newX := x + dx
-			newY := y
+		// Pre-calculate sin value for performance (only changes with y)
+		sinValue := math.Sin(t.frequency * float64(y))
+		dx := int(t.amplitude * sinValue)
 
-			// 如果新坐标在目标图像范围内，设置像素
-			if newX >= 0 && newX < width && newY >= 0 && newY < height {
-				_, _, _, a := src.At(x, y).RGBA()
+		for x := 0; x < width; x++ {
+			newX := x + dx
+			// 确保新坐标在范围内
+			if newX >= 0 && newX < width {
+				// Cache color value to avoid calling src.At() twice
+				color := src.At(x, y)
+				_, _, _, a := color.RGBA()
 				if a != 0 {
-					dst.Set(newX, newY, src.At(x, y))
+					dst.Set(newX, y, color)
 				}
 			}
 		}
@@ -163,7 +176,18 @@ func (t *twistTextDrawer) twistEffect(src image.Image, dst draw.Image) error {
 }
 
 // NewTwistTextDrawer returns a new text drawer with twist effect.
+// Parameters: dpi for font resolution, amplitude for wave height, frequency for wave frequency.
 func NewTwistTextDrawer(dpi float64, amplitude float64, frequency float64) TextDrawer {
+	// Validate and set default values for parameters
+	if amplitude <= 0 {
+		amplitude = 2.0
+	}
+	if frequency <= 0 {
+		frequency = 0.05
+	}
+	if dpi <= 0 {
+		dpi = 72
+	}
 	return &twistTextDrawer{
 		dpi:       dpi,
 		r:         rand.New(rand.NewSource(time.Now().UnixNano())),

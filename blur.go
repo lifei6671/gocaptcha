@@ -18,19 +18,36 @@ func NewGaussianBlur() BlurDrawer {
 }
 
 func (g *gaussianBlur) DrawBlur(canvas draw.Image, kernelSize int, sigma float64) error {
+	// Validate parameters to prevent panic
+	if kernelSize <= 0 || kernelSize%2 == 0 {
+		// Ensure kernel size is positive and odd
+		kernelSize = 5 // default to 5x5 kernel
+	}
+	if sigma <= 0 {
+		sigma = 1.0 // default sigma
+	}
+
 	kernel := g.generateGaussianKernel(kernelSize, sigma)
 	bounds := canvas.Bounds()
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			r, g, b := g.applyKernel(canvas, x, y, kernel)
-			canvas.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			r, grn, b := g.applyKernel(canvas, x, y, kernel)
+			canvas.Set(x, y, color.RGBA{R: r, G: grn, B: b, A: 255})
 		}
 	}
 	return nil
 }
 
 func (g *gaussianBlur) generateGaussianKernel(kernelSize int, sigma float64) [][]float64 {
+	// Guard against invalid parameters to prevent division by zero
+	if sigma <= 0 {
+		sigma = 1.0
+	}
+	if kernelSize <= 0 {
+		kernelSize = 5
+	}
+
 	kernel := make([][]float64, kernelSize)
 	sum := 0.0
 	mid := kernelSize / 2
@@ -45,10 +62,12 @@ func (g *gaussianBlur) generateGaussianKernel(kernelSize int, sigma float64) [][
 		}
 	}
 
-	// Normalize kernel
-	for i := 0; i < kernelSize; i++ {
-		for j := 0; j < kernelSize; j++ {
-			kernel[i][j] /= sum
+	// Normalize kernel to ensure sum equals 1.0
+	if sum > 0 {
+		for i := 0; i < kernelSize; i++ {
+			for j := 0; j < kernelSize; j++ {
+				kernel[i][j] /= sum
+			}
 		}
 	}
 
@@ -59,23 +78,41 @@ func (g *gaussianBlur) applyKernel(canvas draw.Image, x int, y int, kernel [][]f
 	bounds := canvas.Bounds()
 	size := len(kernel)
 	mid := size / 2
-	var r1, g1, b1 float64
+	var rSum, gSum, bSum float64
+	var weightSum float64
 
 	for ky := 0; ky < size; ky++ {
 		for kx := 0; kx < size; kx++ {
 			px := x + kx - mid
 			py := y + ky - mid
 			if px >= bounds.Min.X && px < bounds.Max.X && py >= bounds.Min.Y && py < bounds.Max.Y {
-				rr, gg, bb, _ := canvas.At(px, py).RGBA()
+				// RGBA returns premultiplied alpha in 0-65535 range
+				rr, gg, bb, aa := canvas.At(px, py).RGBA()
 				k := kernel[ky][kx]
-				r1 += k * float64(rr>>8)
-				g1 += k * float64(gg>>8)
-				b1 += k * float64(bb>>8)
+				// Handle alpha channel: normalize by alpha for proper transparency
+				alpha := float64(aa) / 65535.0
+				weight := k * alpha
+				weightSum += weight
+				// Convert from 16-bit to 8-bit (0-255 range)
+				rSum += weight * float64(rr>>8)
+				gSum += weight * float64(gg>>8)
+				bSum += weight * float64(bb>>8)
+			} else {
+				// For out-of-bounds, use edge padding (lower weight)
+				k := kernel[ky][kx]
+				weightSum += k * 0.5
 			}
 		}
 	}
 
-	return g.clamp(r1), g.clamp(g1), g.clamp(b1)
+	// Normalize by weight sum to handle transparency and edge artifacts
+	if weightSum > 0 {
+		rSum /= weightSum
+		gSum /= weightSum
+		bSum /= weightSum
+	}
+
+	return g.clamp(rSum), g.clamp(gSum), g.clamp(bSum)
 }
 
 func (g *gaussianBlur) clamp(value float64) uint8 {

@@ -23,6 +23,10 @@ func NewBeeline() LineDrawer {
 
 // DrawLine 画一条直线
 func (beeline) DrawLine(canvas draw.Image, x1 image.Point, y1 image.Point, color color.Color) error {
+	bounds := canvas.Bounds()
+	maxX := bounds.Dx()
+	maxY := bounds.Dy()
+	
 	dx := abs(x1.X - y1.X)
 	dy := abs(y1.Y - x1.Y)
 
@@ -43,16 +47,12 @@ func (beeline) DrawLine(canvas draw.Image, x1 image.Point, y1 image.Point, color
 		{-1, 1}, {0, 1}, {1, 1},
 	}
 
-	// 边界检查函数
-	isValidPoint := func(cx, cy int) bool {
-		return cx >= 0 && cx < canvas.Bounds().Dx() && cy >= 0 && cy < canvas.Bounds().Dy()
-	}
-
-	// 绘制粗点函数
+	// 绘制粗点函数（内联，避免闭包开销）
 	drawThickPoint := func(cx, cy int) {
 		for _, offset := range offsets {
 			nx, ny := cx+offset.dx, cy+offset.dy
-			if isValidPoint(nx, ny) {
+			// 边界检查
+			if nx >= 0 && nx < maxX && ny >= 0 && ny < maxY {
 				canvas.Set(nx, ny, color)
 			}
 		}
@@ -82,38 +82,50 @@ type curveLine struct {
 }
 
 func (c curveLine) DrawLine(canvas draw.Image, x image.Point, y image.Point, cl color.Color) error {
+	bounds := canvas.Bounds()
+	maxX := bounds.Dx()
+	maxY := bounds.Dy()
 	px := 0
-	var py float64 = 0
+	var py float64
 
 	//振幅
-	amplitude := c.r.Intn(canvas.Bounds().Dy() / 2)
+	amplitude := c.r.Intn(maxY / 2)
 
 	//Y轴方向偏移量
-	b := Random(int64(-canvas.Bounds().Dy()/4), int64(canvas.Bounds().Dy()/4))
+	offsetY := Random(int64(-maxY/4), int64(maxY/4))
 
 	//X轴方向偏移量
-	frequency := Random(int64(-canvas.Bounds().Dy()/4), int64(canvas.Bounds().Dy()/4))
+	frequency := Random(int64(-maxY/4), int64(maxY/4))
 	// 周期
-	var t float64 = 0
-	if canvas.Bounds().Dy() > canvas.Bounds().Dx()/2 {
-		t = Random(int64(canvas.Bounds().Dx()/2), int64(canvas.Bounds().Dy()))
+	period := 0.0
+	if maxY > maxX/2 {
+		period = Random(int64(maxX/2), int64(maxY))
 	} else {
-		t = Random(int64(canvas.Bounds().Dy()), int64(canvas.Bounds().Dx()/2))
+		period = Random(int64(maxY), int64(maxX/2))
 	}
 	// 相位
-	phase := (2 * math.Pi) / t
+	phase := (2 * math.Pi) / period
 
 	// 曲线横坐标起始位置
 	px1 := 0
-	px2 := int(Random(int64(float64(canvas.Bounds().Dx())*0.8), int64(canvas.Bounds().Dx())))
+	px2 := int(Random(int64(float64(maxX)*0.8), int64(maxX)))
+	
+	// 预计算常数
+	yOffset := float64(maxY) / 5.0
+	heightDiv5 := maxY / 5
 
 	for px = px1; px < px2; px++ {
 		if phase != 0 {
-			py = float64(amplitude)*math.Sin(phase*float64(px)+frequency) + b + (float64(canvas.Bounds().Dx()) / float64(5))
-			i := canvas.Bounds().Dy() / 5
-			for i > 0 {
-				canvas.Set(px+i, int(py), cl)
-				i--
+			py = float64(amplitude)*math.Sin(phase*float64(px)+frequency) + offsetY + yOffset
+			// 边界检查
+			if py >= 0 && py < float64(maxY) {
+				pyInt := int(py)
+				for i := 0; i < heightDiv5; i++ {
+					ny := pyInt + i
+					if ny >= 0 && ny < maxY && px >= 0 && px < maxX {
+						canvas.Set(px+i, ny, cl)
+					}
+				}
 			}
 		}
 	}
@@ -132,19 +144,31 @@ type bezierLine struct {
 }
 
 func (b bezierLine) DrawLine(canvas draw.Image, p0 image.Point, p2 image.Point, curveColor color.Color) error {
-	width := canvas.Bounds().Dx()
-	height := canvas.Bounds().Dy()
+	bounds := canvas.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
 	// 随机生成4个控制点
-	//p0 := image.Point{X: rand.Intn(width / 4), Y: rand.Intn(height)}
+	//p0 := image.Point{X: b.r.Intn(width / 4), Y: b.r.Intn(height)}
 	p1 := image.Point{X: b.r.Intn(width / 2), Y: b.r.Intn(height)}
-	//p2 := image.Point{X: width/2 + rand.Intn(width/4), Y: rand.Intn(height)}
+	//p2 := image.Point{X: width/2 + b.r.Intn(width/4), Y: b.r.Intn(height)}
 	p3 := image.Point{X: width - 1, Y: b.r.Intn(height)}
 
-	// 绘制贝塞尔曲线
-	for t := 0.0; t <= 1.0; t += 0.001 {
-		x := int((1-t)*(1-t)*(1-t)*float64(p0.X) + 3*(1-t)*(1-t)*t*float64(p1.X) + 3*(1-t)*t*t*float64(p2.X) + t*t*t*float64(p3.X))
-		y := int((1-t)*(1-t)*(1-t)*float64(p0.Y) + 3*(1-t)*(1-t)*t*float64(p1.Y) + 3*(1-t)*t*t*float64(p2.Y) + t*t*t*float64(p3.Y))
-		canvas.Set(x, y, curveColor)
+	// 预计算常量系数以提高性能
+	// 绘制贝塞尔曲线，减少循环步长
+	for t := 0.0; t <= 1.0; t += 0.01 {
+		mt := 1 - t
+		c0 := mt * mt * mt
+		c1 := 3 * mt * mt * t
+		c2 := 3 * mt * t * t
+		c3 := t * t * t
+		
+		x := int(c0*float64(p0.X) + c1*float64(p1.X) + c2*float64(p2.X) + c3*float64(p3.X))
+		y := int(c0*float64(p0.Y) + c1*float64(p1.Y) + c2*float64(p2.Y) + c3*float64(p3.Y))
+		
+		// 添加边界检查，防止越界
+		if x >= 0 && x < width && y >= 0 && y < height {
+			canvas.Set(x, y, curveColor)
+		}
 	}
 	return nil
 }
@@ -162,8 +186,9 @@ type bezier3DLine struct {
 
 // DrawLine 绘制3D效果的贝塞尔曲线
 func (b bezier3DLine) DrawLine(canvas draw.Image, p0 image.Point, p2 image.Point, cl color.Color) error {
-	width := canvas.Bounds().Dx()
-	height := canvas.Bounds().Dy()
+	bounds := canvas.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
 	// 随机生成4个控制点
 	//p0 := image.Point{X: b.r.Intn(width / 4), Y: b.r.Intn(height)}
 	p1 := image.Point{X: b.r.Intn(width / 2), Y: b.r.Intn(height)}
@@ -171,21 +196,47 @@ func (b bezier3DLine) DrawLine(canvas draw.Image, p0 image.Point, p2 image.Point
 	p3 := image.Point{X: width - 1, Y: b.r.Intn(height)}
 
 	drawPointWithWidth := func(img draw.Image, x, y int, col color.Color, width int) {
+		// 优化：只在必要时执行边界检查
+		minX := x - width
+		maxX := x + width
+		minY := y - width
+		maxY := y + width
+		
+		canvasBounds := img.Bounds()
+		canvasMaxX := canvasBounds.Dx()
+		canvasMaxY := canvasBounds.Dy()
+		
+		// 快速越界检查
+		if maxX < 0 || minX >= canvasMaxX || maxY < 0 || minY >= canvasMaxY {
+			return
+		}
+		
 		for dx := -width; dx <= width; dx++ {
 			for dy := -width; dy <= width; dy++ {
 				// 确保点在圆形范围内
 				if dx*dx+dy*dy <= width*width {
-					img.Set(x+dx, y+dy, col)
+					nx, ny := x+dx, y+dy
+					// 边界检查
+					if nx >= 0 && nx < canvasMaxX && ny >= 0 && ny < canvasMaxY {
+						img.Set(nx, ny, col)
+					}
 				}
 			}
 		}
 	}
+	
 	w := float64(b.r.Intn(height / 5))
-	// 绘制贝塞尔曲线，模拟3D效果
-	for t := 0.0; t <= 1.0; t += 0.001 {
-		// 计算当前点的坐标
-		x := int((1-t)*(1-t)*(1-t)*float64(p0.X) + 3*(1-t)*(1-t)*t*float64(p1.X) + 3*(1-t)*t*t*float64(p2.X) + t*t*t*float64(p3.X))
-		y := int((1-t)*(1-t)*(1-t)*float64(p0.Y) + 3*(1-t)*(1-t)*t*float64(p1.Y) + 3*(1-t)*t*t*float64(p2.Y) + t*t*t*float64(p3.Y))
+	// 绘制贝塞尔曲线，模拟3D效果，减少循环次数
+	for t := 0.0; t <= 1.0; t += 0.01 {
+		// 计算当前点的坐标（预计算系数以优化性能）
+		mt := 1 - t
+		c0 := mt * mt * mt
+		c1 := 3 * mt * mt * t
+		c2 := 3 * mt * t * t
+		c3 := t * t * t
+		
+		x := int(c0*float64(p0.X) + c1*float64(p1.X) + c2*float64(p2.X) + c3*float64(p3.X))
+		y := int(c0*float64(p0.Y) + c1*float64(p1.Y) + c2*float64(p2.Y) + c3*float64(p3.Y))
 
 		// 使用 t 值调整颜色和线宽，模拟3D效果
 		opacity := uint8(255 - int(t*255)) // 透明度渐变
@@ -239,9 +290,14 @@ func (h hollowLine) DrawLine(canvas draw.Image, p0 image.Point, p1 image.Point, 
 
 		// Ensure y is within bounds
 		y = math.Max(0, math.Min(float64(height-1), y))
+		py := int(y)
 
-		for i := 0; i <= w && int(y)+i < height; i++ {
-			canvas.Set(int(x1), int(y)+i, lineColor)
+		for i := 0; i <= w; i++ {
+			ny := py + i
+			// 添加边界检查
+			if ny >= 0 && ny < height && int(x1) >= 0 && int(x1) < width {
+				canvas.Set(int(x1), ny, lineColor)
+			}
 		}
 	}
 	return nil

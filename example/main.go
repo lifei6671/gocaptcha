@@ -38,7 +38,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		DrawNoise(gocaptcha.NoiseDensityHigh, gocaptcha.NewTextNoiseDrawer(72)).
 		DrawNoise(gocaptcha.NoiseDensityLower, gocaptcha.NewPointNoiseDrawer()).
 		DrawLine(gocaptcha.NewBezier3DLine(), gocaptcha.RandDeepColor()).
-		DrawText(gocaptcha.NewTwistTextDrawer(gocaptcha.DefaultDPI, gocaptcha.DefaultAmplitude, gocaptcha.DefaultFrequency), gocaptcha.RandText(4)).
+		DrawText(gocaptcha.NewTwistTextDrawer(gocaptcha.DefaultDPI, 10, 0.01), gocaptcha.RandText(4)).
 		DrawLine(gocaptcha.NewBeeline(), gocaptcha.RandDeepColor()).
 		//DrawLine(gocaptcha.NewHollowLine(), gocaptcha.RandLightColor()).
 		DrawBlur(gocaptcha.NewGaussianBlur(), gocaptcha.DefaultBlurKernelSize, gocaptcha.DefaultBlurSigma).

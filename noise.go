@@ -43,9 +43,9 @@ func (n pointNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity) error 
 		densityNum = 18
 	}
 
-	maxSize := (img.Bounds().Dy() * img.Bounds().Dx()) / densityNum
-
 	bounds := img.Bounds()
+	maxSize := (bounds.Dy() * bounds.Dx()) / densityNum
+
 	width := bounds.Dx()
 	height := bounds.Dy()
 
@@ -55,6 +55,7 @@ func (n pointNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity) error 
 
 		img.Set(rw, rh, RandColor())
 		// 优化噪声点的生成逻辑，例如可以基于一定的概率决定是否绘制额外的点
+		// 边界检查确保不越界
 		if n.r.Intn(3) == 0 && rw+1 < width && rh+1 < height {
 			img.Set(rw+1, rh+1, RandColor())
 		}
@@ -76,6 +77,7 @@ type textNoiseDrawer struct {
 }
 
 // DrawNoise draws noise on the image
+// Performance optimized: caches font to avoid repeated loading
 func (n textNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity) error {
 	var densityNum int
 	switch density {
@@ -91,16 +93,26 @@ func (n textNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity) error {
 	bounds := img.Bounds()
 	maxSize := (bounds.Dy() * bounds.Dx()) / densityNum
 	c := freetype.NewContext()
-	if n.dpi <= 0 {
-		n.dpi = 72
+
+	// 使用有效的 DPI 值，避免修改接收者字段 (race condition)
+	dpi := n.dpi
+	if dpi <= 0 {
+		dpi = 72
 	}
 
-	c.SetDPI(n.dpi)
+	c.SetDPI(dpi)
 
 	c.SetClip(bounds)
 	c.SetDst(img)
 	c.SetHinting(font.HintingFull)
 	rawFontSize := float64(bounds.Dy()) / (1 + float64(n.r.Intn(7))/float64(10))
+
+	// 预加载字体一次，避免在循环中重复加载（性能优化）
+	f, err := DefaultFontFamily.Random()
+	if err != nil {
+		return err
+	}
+	c.SetFont(f)
 
 	for i := 0; i < maxSize; i++ {
 
@@ -112,11 +124,6 @@ func (n textNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity) error {
 
 		c.SetSrc(image.NewUniform(RandLightColor()))
 		c.SetFontSize(fontSize)
-		f, err := DefaultFontFamily.Random()
-		if err != nil {
-			return err
-		}
-		c.SetFont(f)
 		pt := freetype.Pt(rw, rh)
 
 		_, err = c.DrawString(text, pt)
