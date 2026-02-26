@@ -155,3 +155,38 @@ func TestFontFamily_AddFontPath(t *testing.T) {
 		})
 	}
 }
+
+func TestFontFamily_SetFontWeight(t *testing.T) {
+	family := NewFontFamily()
+	if err := family.AddFont("./fonts/3Dumb.ttf"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := family.SetFontWeight("./fonts/3Dumb.ttf", 5); err != nil {
+		t.Fatalf("SetFontWeight() error = %v", err)
+	}
+	if err := family.SetFontWeight("./fonts/not-exist.ttf", 2); err == nil {
+		t.Fatal("SetFontWeight() expected error for missing font")
+	}
+	if err := family.SetFontWeight("./fonts/3Dumb.ttf", 0); err == nil {
+		t.Fatal("SetFontWeight() expected error for non-positive weight")
+	}
+}
+
+func TestFontFamily_RandomWithFallback(t *testing.T) {
+	family := NewFontFamily()
+	family.fonts = []string{"./testdata/not-exist.ttf", "./fonts/3Dumb.ttf"}
+	family.weights["./testdata/not-exist.ttf"] = 100
+	family.weights["./fonts/3Dumb.ttf"] = 1
+	if err := family.SetFallbackFonts("./fonts/3Dumb.ttf"); err != nil {
+		t.Fatalf("SetFallbackFonts() error = %v", err)
+	}
+
+	fontFace, err := family.RandomWithFallback()
+	if err != nil {
+		t.Fatalf("RandomWithFallback() error = %v", err)
+	}
+	if fontFace == nil {
+		t.Fatal("RandomWithFallback() returned nil font")
+	}
+}

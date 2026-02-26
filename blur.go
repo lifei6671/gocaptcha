@@ -1,16 +1,28 @@
 package gocaptcha
 
 import (
-	"image/color"
+	"image"
 	"image/draw"
 	"math"
+	"sync"
+)
+
+const (
+	defaultGaussianKernelSize = 5
+	defaultGaussianSigma      = 1.0
 )
 
 type BlurDrawer interface {
 	DrawBlur(canvas draw.Image, kernelSize int, sigma float64) error
 }
 
+type gaussianKernelKey struct {
+	kernelSize int
+	sigmaBits  uint64
+}
+
 type gaussianBlur struct {
+	kernelCache sync.Map
 }
 
 func NewGaussianBlur() BlurDrawer {
@@ -18,109 +30,159 @@ func NewGaussianBlur() BlurDrawer {
 }
 
 func (g *gaussianBlur) DrawBlur(canvas draw.Image, kernelSize int, sigma float64) error {
-	// Validate parameters to prevent panic
-	if kernelSize <= 0 || kernelSize%2 == 0 {
-		// Ensure kernel size is positive and odd
-		kernelSize = 5 // default to 5x5 kernel
-	}
-	if sigma <= 0 {
-		sigma = 1.0 // default sigma
+	if canvas == nil {
+		return ErrNilCanvas
 	}
 
-	kernel := g.generateGaussianKernel(kernelSize, sigma)
 	bounds := canvas.Bounds()
-
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			r, grn, b := g.applyKernel(canvas, x, y, kernel)
-			canvas.Set(x, y, color.RGBA{R: r, G: grn, B: b, A: 255})
-		}
+	width := bounds.Dx()
+	height := bounds.Dy()
+	if width <= 0 || height <= 0 {
+		return nil
 	}
+
+	kernelSize, sigma = normalizeBlurParams(kernelSize, sigma)
+	kernel := g.getKernel(kernelSize, sigma)
+
+	src := image.NewRGBA(image.Rect(0, 0, width, height))
+	draw.Draw(src, src.Bounds(), canvas, bounds.Min, draw.Src)
+
+	tmp := image.NewRGBA(src.Bounds())
+	dst := image.NewRGBA(src.Bounds())
+
+	convolveHorizontal(src, tmp, kernel)
+	convolveVertical(tmp, dst, kernel)
+
+	draw.Draw(canvas, bounds, dst, image.Point{}, draw.Src)
 	return nil
 }
 
-func (g *gaussianBlur) generateGaussianKernel(kernelSize int, sigma float64) [][]float64 {
-	// Guard against invalid parameters to prevent division by zero
-	if sigma <= 0 {
-		sigma = 1.0
+func (g *gaussianBlur) getKernel(kernelSize int, sigma float64) []float64 {
+	key := gaussianKernelKey{
+		kernelSize: kernelSize,
+		sigmaBits:  math.Float64bits(sigma),
 	}
-	if kernelSize <= 0 {
-		kernelSize = 5
+	if cached, ok := g.kernelCache.Load(key); ok {
+		return cached.([]float64)
 	}
 
-	kernel := make([][]float64, kernelSize)
+	kernel := generateGaussianKernel1D(kernelSize, sigma)
+	actual, _ := g.kernelCache.LoadOrStore(key, kernel)
+	return actual.([]float64)
+}
+
+func normalizeBlurParams(kernelSize int, sigma float64) (int, float64) {
+	if kernelSize <= 0 || kernelSize%2 == 0 {
+		kernelSize = defaultGaussianKernelSize
+	}
+	if sigma <= 0 || math.IsNaN(sigma) || math.IsInf(sigma, 0) {
+		sigma = defaultGaussianSigma
+	}
+	return kernelSize, sigma
+}
+
+func generateGaussianKernel1D(kernelSize int, sigma float64) []float64 {
+	radius := kernelSize / 2
+	kernel := make([]float64, kernelSize)
+	denominator := 2 * sigma * sigma
+
 	sum := 0.0
-	mid := kernelSize / 2
-
-	for i := 0; i < kernelSize; i++ {
-		kernel[i] = make([]float64, kernelSize)
-		for j := 0; j < kernelSize; j++ {
-			x := float64(i - mid)
-			y := float64(j - mid)
-			kernel[i][j] = math.Exp(-(x*x+y*y)/(2*sigma*sigma)) / (2 * math.Pi * sigma * sigma)
-			sum += kernel[i][j]
-		}
+	for i := -radius; i <= radius; i++ {
+		value := math.Exp(-(float64(i * i)) / denominator)
+		kernel[i+radius] = value
+		sum += value
 	}
 
-	// Normalize kernel to ensure sum equals 1.0
 	if sum > 0 {
-		for i := 0; i < kernelSize; i++ {
-			for j := 0; j < kernelSize; j++ {
-				kernel[i][j] /= sum
-			}
+		for i := range kernel {
+			kernel[i] /= sum
 		}
 	}
-
 	return kernel
 }
 
-func (g *gaussianBlur) applyKernel(canvas draw.Image, x int, y int, kernel [][]float64) (uint8, uint8, uint8) {
-	bounds := canvas.Bounds()
-	size := len(kernel)
-	mid := size / 2
-	var rSum, gSum, bSum float64
-	var weightSum float64
+func convolveHorizontal(src *image.RGBA, dst *image.RGBA, kernel []float64) {
+	width := src.Bounds().Dx()
+	height := src.Bounds().Dy()
+	radius := len(kernel) / 2
 
-	for ky := 0; ky < size; ky++ {
-		for kx := 0; kx < size; kx++ {
-			px := x + kx - mid
-			py := y + ky - mid
-			if px >= bounds.Min.X && px < bounds.Max.X && py >= bounds.Min.Y && py < bounds.Max.Y {
-				// RGBA returns premultiplied alpha in 0-65535 range
-				rr, gg, bb, aa := canvas.At(px, py).RGBA()
-				k := kernel[ky][kx]
-				// Handle alpha channel: normalize by alpha for proper transparency
-				alpha := float64(aa) / 65535.0
-				weight := k * alpha
-				weightSum += weight
-				// Convert from 16-bit to 8-bit (0-255 range)
-				rSum += weight * float64(rr>>8)
-				gSum += weight * float64(gg>>8)
-				bSum += weight * float64(bb>>8)
-			} else {
-				// For out-of-bounds, use edge padding (lower weight)
-				k := kernel[ky][kx]
-				weightSum += k * 0.5
+	for y := 0; y < height; y++ {
+		srcRowOffset := y * src.Stride
+		dstRowOffset := y * dst.Stride
+
+		for x := 0; x < width; x++ {
+			var rAcc, gAcc, bAcc, aAcc float64
+
+			for k := -radius; k <= radius; k++ {
+				sampleX := mirrorIndex(x+k, width)
+				weight := kernel[k+radius]
+				srcOffset := srcRowOffset + sampleX*4
+
+				rAcc += float64(src.Pix[srcOffset]) * weight
+				gAcc += float64(src.Pix[srcOffset+1]) * weight
+				bAcc += float64(src.Pix[srcOffset+2]) * weight
+				aAcc += float64(src.Pix[srcOffset+3]) * weight
 			}
+
+			dstOffset := dstRowOffset + x*4
+			dst.Pix[dstOffset] = clampToByte(rAcc)
+			dst.Pix[dstOffset+1] = clampToByte(gAcc)
+			dst.Pix[dstOffset+2] = clampToByte(bAcc)
+			dst.Pix[dstOffset+3] = clampToByte(aAcc)
 		}
 	}
-
-	// Normalize by weight sum to handle transparency and edge artifacts
-	if weightSum > 0 {
-		rSum /= weightSum
-		gSum /= weightSum
-		bSum /= weightSum
-	}
-
-	return g.clamp(rSum), g.clamp(gSum), g.clamp(bSum)
 }
 
-func (g *gaussianBlur) clamp(value float64) uint8 {
-	if value < 0 {
+func convolveVertical(src *image.RGBA, dst *image.RGBA, kernel []float64) {
+	width := src.Bounds().Dx()
+	height := src.Bounds().Dy()
+	radius := len(kernel) / 2
+
+	for y := 0; y < height; y++ {
+		dstRowOffset := y * dst.Stride
+		for x := 0; x < width; x++ {
+			var rAcc, gAcc, bAcc, aAcc float64
+
+			for k := -radius; k <= radius; k++ {
+				sampleY := mirrorIndex(y+k, height)
+				weight := kernel[k+radius]
+				srcOffset := sampleY*src.Stride + x*4
+
+				rAcc += float64(src.Pix[srcOffset]) * weight
+				gAcc += float64(src.Pix[srcOffset+1]) * weight
+				bAcc += float64(src.Pix[srcOffset+2]) * weight
+				aAcc += float64(src.Pix[srcOffset+3]) * weight
+			}
+
+			dstOffset := dstRowOffset + x*4
+			dst.Pix[dstOffset] = clampToByte(rAcc)
+			dst.Pix[dstOffset+1] = clampToByte(gAcc)
+			dst.Pix[dstOffset+2] = clampToByte(bAcc)
+			dst.Pix[dstOffset+3] = clampToByte(aAcc)
+		}
+	}
+}
+
+func mirrorIndex(index int, length int) int {
+	if length <= 1 {
 		return 0
 	}
-	if value > 255 {
+	for index < 0 || index >= length {
+		if index < 0 {
+			index = -index - 1
+		} else {
+			index = 2*length - index - 1
+		}
+	}
+	return index
+}
+
+func clampToByte(value float64) uint8 {
+	if value <= 0 {
+		return 0
+	}
+	if value >= 255 {
 		return 255
 	}
-	return uint8(value)
+	return uint8(value + 0.5)
 }

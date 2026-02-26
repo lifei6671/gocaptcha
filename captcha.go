@@ -11,13 +11,8 @@ import (
 	"image/png"
 	"io"
 	"math/rand"
-	"time"
+	"sync"
 )
-
-func init() {
-	// seed global PRNG to avoid deterministic behavior in functions
-	rand.Seed(time.Now().UnixNano())
-}
 
 const (
 	// DefaultDPI 默认的dpi
@@ -25,7 +20,7 @@ const (
 	// DefaultBlurKernelSize 默认模糊卷积核大小
 	DefaultBlurKernelSize = 2
 	// DefaultBlurSigma 默认模糊sigma值
-	DefaultBlurSigma = 0.65
+	DefaultBlurSigma = 0.15
 	// DefaultAmplitude 默认图片扭曲的振幅
 	DefaultAmplitude = 20
 	//DefaultFrequency 默认图片扭曲的波频率
@@ -49,10 +44,43 @@ type CaptchaImage struct {
 	height  int
 	Complex int
 	Error   error
+	r       *rand.Rand
+	randMu  sync.Mutex
 }
 
 // New 新建一个图片对象
 func New(width int, height int, bgColor color.RGBA) *CaptchaImage {
+	return NewWithOptions(width, height, WithBackgroundColor(bgColor))
+}
+
+type captchaOptions struct {
+	bgColor    color.RGBA
+	bgColorSet bool
+	seedSet    bool
+	seed       int64
+}
+
+// CaptchaOption configures captcha image construction.
+type CaptchaOption func(*captchaOptions)
+
+// WithBackgroundColor sets captcha background color.
+func WithBackgroundColor(bgColor color.RGBA) CaptchaOption {
+	return func(opts *captchaOptions) {
+		opts.bgColor = bgColor
+		opts.bgColorSet = true
+	}
+}
+
+// WithRandomSeed sets deterministic random seed for captcha-level randomness.
+func WithRandomSeed(seed int64) CaptchaOption {
+	return func(opts *captchaOptions) {
+		opts.seed = seed
+		opts.seedSet = true
+	}
+}
+
+// NewWithOptions creates a captcha image with functional options.
+func NewWithOptions(width int, height int, options ...CaptchaOption) *CaptchaImage {
 	// enforce minimum dimensions to avoid panics downstream
 	if width <= 0 {
 		width = 1
@@ -60,14 +88,31 @@ func New(width int, height int, bgColor color.RGBA) *CaptchaImage {
 	if height <= 0 {
 		height = 1
 	}
+
+	opts := captchaOptions{}
+	for _, option := range options {
+		if option != nil {
+			option(&opts)
+		}
+	}
+	if !opts.bgColorSet {
+		opts.bgColor = RandLightColor()
+	}
+
+	randomizer := newSecureSeededRand()
+	if opts.seedSet {
+		randomizer = rand.New(rand.NewSource(opts.seed))
+	}
+
 	m := image.NewNRGBA(image.Rect(0, 0, width, height))
 
-	draw.Draw(m, m.Bounds(), &image.Uniform{C: bgColor}, image.Point{}, draw.Src)
+	draw.Draw(m, m.Bounds(), &image.Uniform{C: opts.bgColor}, image.Point{}, draw.Src)
 
 	return &CaptchaImage{
 		nrgba:  m,
 		height: height,
 		width:  width,
+		r:      randomizer,
 	}
 }
 
@@ -101,8 +146,8 @@ func (captcha *CaptchaImage) DrawLine(drawer LineDrawer, lineColor color.Color) 
 		captcha.Error = errors.New("image has zero height")
 		return captcha
 	}
-	point1 := image.Point{X: captcha.nrgba.Bounds().Min.X + 1, Y: rand.Intn(y)}
-	point2 := image.Point{X: captcha.nrgba.Bounds().Max.X - 1, Y: rand.Intn(y)}
+	point1 := image.Point{X: captcha.nrgba.Bounds().Min.X + 1, Y: captcha.randIntn(y)}
+	point2 := image.Point{X: captcha.nrgba.Bounds().Max.X - 1, Y: captcha.randIntn(y)}
 	captcha.Error = drawer.DrawLine(captcha.nrgba, point1, point2, lineColor)
 	return captcha
 }
@@ -136,6 +181,25 @@ func (captcha *CaptchaImage) DrawNoise(complex NoiseDensity, noiseDrawer NoiseDr
 	return captcha
 }
 
+// DrawNoiseWithConfig draws noise with configuration when drawer supports it.
+func (captcha *CaptchaImage) DrawNoiseWithConfig(noiseDrawer NoiseDrawer, config NoiseConfig) *CaptchaImage {
+	if captcha.Error != nil {
+		return captcha
+	}
+	if noiseDrawer == nil {
+		captcha.Error = errors.New("nil NoiseDrawer")
+		return captcha
+	}
+
+	if configurable, ok := noiseDrawer.(ConfigurableNoiseDrawer); ok {
+		captcha.Error = configurable.DrawNoiseWithConfig(captcha.nrgba, config)
+		return captcha
+	}
+
+	captcha.Error = noiseDrawer.DrawNoise(captcha.nrgba, config.Density)
+	return captcha
+}
+
 // DrawText 写字.
 func (captcha *CaptchaImage) DrawText(textDrawer TextDrawer, text string) *CaptchaImage {
 	if captcha.Error != nil {
@@ -160,4 +224,17 @@ func (captcha *CaptchaImage) DrawBlur(drawer BlurDrawer, kernelSize int, sigma f
 	}
 	captcha.Error = drawer.DrawBlur(captcha.nrgba, kernelSize, sigma)
 	return captcha
+}
+
+func (captcha *CaptchaImage) randIntn(n int) int {
+	if n <= 1 {
+		return 0
+	}
+
+	captcha.randMu.Lock()
+	defer captcha.randMu.Unlock()
+	if captcha.r == nil {
+		captcha.r = newSecureSeededRand()
+	}
+	return captcha.r.Intn(n)
 }
