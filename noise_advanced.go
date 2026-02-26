@@ -1,3 +1,5 @@
+// Package gocaptcha 提供生成验证码图片的功能
+// 本文件实现了高级噪声生成相关的功能，用于在验证码中添加更复杂的噪声元素
 package gocaptcha
 
 import (
@@ -10,15 +12,36 @@ import (
 )
 
 const (
+	// defaultPoissonAttempts 默认的泊松点尝试次数
+	// 影响：控制生成泊松点时的尝试次数，值越高生成的点分布越均匀
 	defaultPoissonAttempts = 20
-	defaultPerlinOctaves   = 3
-	sqrtHalf               = 0.7071067811865476
+	// defaultPerlinOctaves 默认的Perlin噪声八度
+	// 影响：控制Perlin噪声的细节程度，值越高细节越丰富
+	defaultPerlinOctaves = 3
+	// sqrtHalf √2/2 的值，用于梯度计算
+	sqrtHalf = 0.7071067811865476
 )
+
+// poissonPoint 泊松点结构体
+// 表示泊松圆盘采样中的一个点
+// 字段：
+// - x: 点的X坐标
+// - y: 点的Y坐标
 
 type poissonPoint struct {
 	x float64
 	y float64
 }
+
+// poissonPointNoiseDrawer 泊松点噪声绘制器
+// 实现了 NoiseDrawer 接口，使用泊松圆盘采样生成噪声
+// 字段：
+// - r: 随机数生成器
+// - randMu: 随机数生成器的互斥锁
+// - randOnce: 确保随机数生成器只初始化一次
+// - minDistance: 点之间的最小距离
+// - attempts: 生成点时的尝试次数
+// - colorFn: 颜色生成函数
 
 type poissonPointNoiseDrawer struct {
 	r           *rand.Rand
@@ -29,15 +52,37 @@ type poissonPointNoiseDrawer struct {
 	colorFn     NoiseColorFunc
 }
 
-// NewPoissonPointNoiseDrawer creates a Poisson disk sampling noise drawer.
-// It draws stroke-like clutter to better resist OCR denoising/segmentation.
+// NewPoissonPointNoiseDrawer 创建一个泊松圆盘采样噪声绘制器
+// 它绘制类似笔触的杂乱噪声，以更好地抵抗OCR去噪/分割
+// 返回值：
+// - NoiseDrawer: 泊松点噪声绘制器实例
+// 示例：
+// ```go
+// // 创建一个泊松点噪声绘制器
+// noiseDrawer := gocaptcha.NewPoissonPointNoiseDrawer()
+// // 为验证码添加泊松点噪声
+// captcha.DrawNoise(gocaptcha.NoiseDensityMedium, noiseDrawer)
+// ```
 func NewPoissonPointNoiseDrawer() NoiseDrawer {
 	return &poissonPointNoiseDrawer{
 		r: newSecureSeededRand(),
 	}
 }
 
-// NewPoissonPointNoiseDrawerWithConfig creates a Poisson drawer with custom settings.
+// NewPoissonPointNoiseDrawerWithConfig 创建一个带有自定义设置的泊松点噪声绘制器
+// 参数：
+// - minDistance: 点之间的最小距离
+// - attempts: 生成点时的尝试次数
+// - colorFn: 颜色生成函数
+// 返回值：
+// - NoiseDrawer: 泊松点噪声绘制器实例
+// 示例：
+// ```go
+// // 创建一个带有自定义设置的泊松点噪声绘制器
+// noiseDrawer := gocaptcha.NewPoissonPointNoiseDrawerWithConfig(7.0, 20, nil)
+// // 为验证码添加泊松点噪声
+// captcha.DrawNoise(gocaptcha.NoiseDensityMedium, noiseDrawer)
+// ```
 func NewPoissonPointNoiseDrawerWithConfig(minDistance float64, attempts int, colorFn NoiseColorFunc) NoiseDrawer {
 	return &poissonPointNoiseDrawer{
 		r:           newSecureSeededRand(),
@@ -47,6 +92,13 @@ func NewPoissonPointNoiseDrawerWithConfig(minDistance float64, attempts int, col
 	}
 }
 
+// DrawNoise 在图像上绘制泊松点噪声
+// 参数：
+// - img: 要绘制的图像
+// - density: 噪声密度
+// 返回值：
+// - error: 绘制过程中的错误
+// 影响：在图像上绘制基于泊松圆盘采样的噪声，生成类似笔触的效果，增加验证码的复杂度
 func (n *poissonPointNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity) error {
 	if img == nil {
 		return ErrNilCanvas
@@ -58,6 +110,7 @@ func (n *poissonPointNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity
 		return nil
 	}
 
+	// 标准化最小距离
 	minDistance := n.minDistance
 	if minDistance <= 0 || math.IsNaN(minDistance) || math.IsInf(minDistance, 0) {
 		minDistance = poissonMinDistanceForDensity(density)
@@ -66,12 +119,15 @@ func (n *poissonPointNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity
 		minDistance = 1
 	}
 
+	// 标准化尝试次数
 	attempts := n.attempts
 	if attempts <= 0 {
 		attempts = defaultPoissonAttempts
 	}
 
+	// 使用随机数生成器绘制噪声
 	n.withRand(func(r *rand.Rand) {
+		// 生成泊松点
 		points := generatePoissonPoints(width, height, minDistance, attempts, r)
 		for _, point := range points {
 			x := bounds.Min.X + int(point.x)
@@ -80,14 +136,19 @@ func (n *poissonPointNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity
 				continue
 			}
 
+			// 获取笔触配置
 			strokeLength, strokeWidth := poissonStrokeProfile(density, r)
 			primaryAngle := r.Float64() * 2 * math.Pi
+			// 生成与背景对比度高的颜色
 			noiseColor := ocrContrastNoiseColor(img, x, y, r, n.colorFn)
 
+			// 绘制主要笔触
 			drawOrientedStroke(img, bounds, x, y, strokeLength, strokeWidth, primaryAngle, noiseColor)
+			// 对于高密度噪声，添加额外的笔触
 			if density == NoiseDensityHigh && r.Float64() < 0.35 {
 				drawOrientedStroke(img, bounds, x, y, maxInt(2, strokeLength-1), strokeWidth, primaryAngle+math.Pi/2+r.Float64()*0.4, noiseColor)
 			}
+			// 随机添加噪声 blob
 			if r.Float64() < 0.20 {
 				drawNoiseBlob(img, bounds, x, y, maxInt(1, strokeWidth-1), noiseColor)
 			}
@@ -97,10 +158,20 @@ func (n *poissonPointNoiseDrawer) DrawNoise(img draw.Image, density NoiseDensity
 	return nil
 }
 
+// withRand 使用随机数生成器执行函数
+// 参数：
+// - fn: 要执行的函数
+// 影响：确保在安全的情况下使用随机数生成器
 func (n *poissonPointNoiseDrawer) withRand(fn func(r *rand.Rand)) {
 	withDrawerRand(&n.r, &n.randOnce, &n.randMu, fn)
 }
 
+// poissonMinDistanceForDensity 根据密度级别获取泊松点最小距离
+// 参数：
+// - density: 噪声密度级别
+// 返回值：
+// - float64: 点之间的最小距离
+// 影响：密度级别越高，最小距离越小，噪声越密集
 func poissonMinDistanceForDensity(density NoiseDensity) float64 {
 	switch density {
 	case NoiseDensityLower:
@@ -114,6 +185,14 @@ func poissonMinDistanceForDensity(density NoiseDensity) float64 {
 	}
 }
 
+// poissonStrokeProfile 根据密度级别获取笔触配置
+// 参数：
+// - density: 噪声密度级别
+// - r: 随机数生成器
+// 返回值：
+// - int: 笔触长度
+// - int: 笔触宽度
+// 影响：密度级别越高，笔触越长、越宽
 func poissonStrokeProfile(density NoiseDensity, r *rand.Rand) (int, int) {
 	switch density {
 	case NoiseDensityLower:
@@ -218,6 +297,17 @@ func generatePoissonPoints(width int, height int, minDistance float64, attempts 
 	return points
 }
 
+// perlinNoiseDrawer Perlin噪声绘制器
+// 实现了 NoiseDrawer 接口，使用Perlin噪声生成噪声
+// 字段：
+// - r: 随机数生成器
+// - randMu: 随机数生成器的互斥锁
+// - randOnce: 确保随机数生成器只初始化一次
+// - scale: 噪声缩放因子
+// - octaves: 噪声八度
+// - threshold: 噪声阈值
+// - colorFn: 颜色生成函数
+
 type perlinNoiseDrawer struct {
 	r         *rand.Rand
 	randMu    sync.Mutex
@@ -228,15 +318,38 @@ type perlinNoiseDrawer struct {
 	colorFn   NoiseColorFunc
 }
 
-// NewPerlinNoiseDrawer creates a Perlin-style coherent noise drawer.
-// It uses warped ridge + flow-aligned strokes for stronger OCR confusion.
+// NewPerlinNoiseDrawer 创建一个Perlin风格的连贯噪声绘制器
+// 它使用扭曲的脊线和流对齐的笔触来增强OCR混淆
+// 返回值：
+// - NoiseDrawer: Perlin噪声绘制器实例
+// 示例：
+// ```go
+// // 创建一个Perlin噪声绘制器
+// noiseDrawer := gocaptcha.NewPerlinNoiseDrawer()
+// // 为验证码添加Perlin噪声
+// captcha.DrawNoise(gocaptcha.NoiseDensityMedium, noiseDrawer)
+// ```
 func NewPerlinNoiseDrawer() NoiseDrawer {
 	return &perlinNoiseDrawer{
 		r: newSecureSeededRand(),
 	}
 }
 
-// NewPerlinNoiseDrawerWithConfig creates a Perlin drawer with custom settings.
+// NewPerlinNoiseDrawerWithConfig 创建一个带有自定义设置的Perlin噪声绘制器
+// 参数：
+// - scale: 噪声缩放因子
+// - octaves: 噪声八度
+// - threshold: 噪声阈值
+// - colorFn: 颜色生成函数
+// 返回值：
+// - NoiseDrawer: Perlin噪声绘制器实例
+// 示例：
+// ```go
+// // 创建一个带有自定义设置的Perlin噪声绘制器
+// noiseDrawer := gocaptcha.NewPerlinNoiseDrawerWithConfig(22.0, 3, 0.72, nil)
+// // 为验证码添加Perlin噪声
+// captcha.DrawNoise(gocaptcha.NoiseDensityMedium, noiseDrawer)
+// ```
 func NewPerlinNoiseDrawerWithConfig(scale float64, octaves int, threshold float64, colorFn NoiseColorFunc) NoiseDrawer {
 	return &perlinNoiseDrawer{
 		r:         newSecureSeededRand(),

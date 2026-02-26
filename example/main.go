@@ -136,7 +136,7 @@ func applyPreset(captchaImage *gocaptcha.CaptchaImage, preset string) *gocaptcha
 				),
 				gocaptcha.RandText(4),
 			).
-			DrawBlur(gocaptcha.NewGaussianBlur(), 3, 0.80)
+			DrawBlur(gocaptcha.NewGaussianBlur(), 3, 0.15)
 	case "ocr-hard":
 		return captchaImage.
 			DrawBorder(gocaptcha.RandDeepColor()).
